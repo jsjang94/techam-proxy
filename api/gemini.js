@@ -3,10 +3,11 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', '*');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // 1. 일렉트론이 보낸 이메일 검증
+  // 1. 일렉트론이 보낸 이메일 검증 (ALLOWED_CREDENTIALS 기준)
   const userEmail = req.headers['x-user-email'];
-  const allowedEmails = (process.env.ALLOWED_EMAILS || '').split(',');
-  if (!userEmail || !allowedEmails.includes(userEmail.trim())) {
+  const allowedEmails = (process.env.ALLOWED_CREDENTIALS || '').split(',')
+    .map(c => c.trim().split(':')[0].trim().toLowerCase()).filter(Boolean);
+  if (!userEmail || !allowedEmails.includes(userEmail.trim().toLowerCase())) {
     return res.status(403).json({ error: "Gemini 접근 권한이 없습니다." });
   }
 
