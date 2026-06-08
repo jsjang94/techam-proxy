@@ -43,14 +43,21 @@ export default async function handler(req, res) {
     }
 
     // 2. 타겟별 인증 정보 주입
-    if (target === 'atlassian') {
+    if (target === 'atlassian-token') {
+      // 내부망 호출 없이 인증 정보만 반환 — Electron 앱이 사내망에서 직접 Jira/Confluence 호출
+      const auth = Buffer.from(`${process.env.ATLASSIAN_ADMIN_EMAIL}:${process.env.ATLASSIAN_TOKEN}`).toString('base64');
+      const baseUrl = (process.env.ATLASSIAN_BASE_URL || '').replace(/\/$/, '');
+      if (!baseUrl) return res.status(500).json({ error: 'ATLASSIAN_BASE_URL 환경변수가 설정되지 않았습니다.' });
+      return res.status(200).json({ authHeader: `Basic ${auth}`, baseUrl });
+    }
+    else if (target === 'atlassian') {
       const auth = Buffer.from(`${process.env.ATLASSIAN_ADMIN_EMAIL}:${process.env.ATLASSIAN_TOKEN}`).toString('base64');
       const base = (process.env.ATLASSIAN_BASE_URL || '').replace(/\/$/, '');
       const endp = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-      
+
       fetchUrl = `${base}${endp}`;
       fetchOptions.headers['Authorization'] = `Basic ${auth}`;
-    } 
+    }
     else if (target === 'zendesk') {
       const auth = Buffer.from(`${process.env.ZENDESK_ADMIN_EMAIL}/token:${process.env.ZENDESK_TOKEN}`).toString('base64');
       fetchUrl = `https://${process.env.ZENDESK_SUBDOMAIN}.zendesk.com${endpoint}`;
