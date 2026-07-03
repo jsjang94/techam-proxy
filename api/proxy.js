@@ -58,10 +58,12 @@ export default async function handler(req, res) {
       fetchUrl = `${base}${endp}`;
       fetchOptions.headers['Authorization'] = `Basic ${auth}`;
     }
-    else if (target === 'zendesk') {
+    else if (target === 'zendesk-token') {
+      // 내부망 호출 없이 인증 정보만 반환 — Electron 앱이 Zendesk API를 직접 호출
       const auth = Buffer.from(`${process.env.ZENDESK_ADMIN_EMAIL}/token:${process.env.ZENDESK_TOKEN}`).toString('base64');
-      fetchUrl = `https://${process.env.ZENDESK_SUBDOMAIN}.zendesk.com${endpoint}`;
-      fetchOptions.headers['Authorization'] = `Basic ${auth}`;
+      const subdomain = process.env.ZENDESK_SUBDOMAIN;
+      if (!subdomain) return res.status(500).json({ error: 'ZENDESK_SUBDOMAIN 환경변수가 설정되지 않았습니다.' });
+      return res.status(200).json({ authHeader: `Basic ${auth}`, baseUrl: `https://${subdomain}.zendesk.com` });
     }
 
     const response = await fetch(fetchUrl, fetchOptions);
@@ -73,14 +75,13 @@ export default async function handler(req, res) {
       // 🌟 [핵심 보안 로직] 데이터 응답 직전에 서버가 알고 있는 도메인을 붙여서 내려줌
       // 일렉트론 메모리에는 도메인이 남지 않고, 오직 '완성된 링크'만 전달됩니다.
       const atlassianBase = (process.env.ATLASSIAN_BASE_URL || '').replace(/\/$/, '');
-      const zendeskSub = process.env.ZENDESK_SUBDOMAIN;
 
       if (target === 'atlassian') {
         // Jira 이슈 링크 보정
         if (data.issues) {
           data.issues = data.issues.map(i => ({
             ...i,
-            issueLink: `${atlassianBase}/browse/${i.key}` 
+            issueLink: `${atlassianBase}/browse/${i.key}`
           }));
         }
         // Confluence 검색 결과 링크 보정
@@ -90,13 +91,6 @@ export default async function handler(req, res) {
             contentLink: `${atlassianBase}/wiki${r._links?.webui || ''}`
           }));
         }
-      } 
-      else if (target === 'zendesk' && data.results) {
-        // Zendesk 티켓 링크 보정
-        data.results = data.results.map(t => ({
-          ...t,
-          ticketLink: `https://${zendeskSub}.zendesk.com/agent/tickets/${t.id}`
-        }));
       }
 
       if (!response.ok) return res.status(response.status).json({ error: data });
